@@ -4,13 +4,14 @@ str = ''
 t = []  ;time in seconds
 A = []  ;Activity in Becquerel
 
-self.fileName = dialog_pickfile(path = 'H:\IDL_pro\gbklin_pro\actmeter_linearity',filter = ['*.txt','*.csv'])
+self.fileName = dialog_pickfile(path = self.path, get_path = path,filter = ['*.txt','*.csv'])
 ;check that file exist and open it for reading
 if ~file_test(self.fileName,/read,/regular) then begin
   a = dialog_message('The selected file is not readable.')
   return
 endif
 
+self.path = path
 print,self.fileName
 openr,lun,self.fileName,/get_lun
 
@@ -301,6 +302,7 @@ void = {LinearityAnalysis                       ,$
         halfLife:0d                             ,$   ;halflife used to calculate analysis
         formatList:ptr_new()                    ,$
         fileName:''                             ,$   ;full path to data file
+        path:''                                 ,$   ;path in which to look for data files
         time:ptr_new()                          ,$   ;time in hours from first data point
         act: ptr_new()                          ,$   ;measured activity in Gigabecquerel
         actLims:dblarr(2)                       ,$   ;activity limits [min,max] for linearity calculation
