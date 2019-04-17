@@ -258,10 +258,10 @@ end
 pro LinearityAnalysis::Abouts, calledFromInit = calledFromInit
 
 ;change log 
-;0.1    inital version with widget, created on the basis of a script used for many years
+;1.0    inital version with widget, created on the basis of a script used for many years
 
 
-self.programVersion = '0.1'
+self.programVersion = '1.0'
 
 if ~keyword_set(CalledFromInit) then begin
     str = ['Version ' + self.programVersion,'Author: Gustav Brolin, Radiation Physics, Skane University Hospital']
