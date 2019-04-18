@@ -21,13 +21,19 @@ wRef   = widget_info(self.tlb,find_by_uname = 'SelectFormatDlist')
 format = widget_info(wRef,/droplist_select)
 print,format 
 
-
+rowCounter = 0
 case format of
  
   0:begin  ;Comecer
     while ~EOF(lun) do begin
       readf,lun,str
-      strs = strsplit(str,';',/extract)
+      strs = strsplit(str,';',/extract) ;csv data
+      
+      if rowCounter eq 0 then begin
+        splits = strsplit(strs[0],'_',/extract)
+        self.measStartEnd[0] = splits[0] + ' ' + strjoin(strsplit(splits[1],'-',/extract),':')
+      endif
+      
       t = [t,double(strs[1])]
       unit = strs[3]
       case strupcase(unit) of
@@ -37,21 +43,46 @@ case format of
         'GBQ': mltpl = 1d
       endcase
       A = [A,double(strs[2])*mltpl]   ;activity in GBq
+      rowCounter++
     endwhile
+    splits = strsplit(strs[0],'_',/extract) ;save last row, i.e. measurement end
+    self.measStartEnd[1] = splits[0] + ' ' + strjoin(strsplit(splits[1],'-',/extract),':')
     free_lun,lun
     t = t/(3600D)  ;time in hours
   end
   
   1:begin ;Capintec
-    skip_lun,lun,1,/lines
+    readf,lun,str   
+    strs = strsplit(str,' ' ,/extract)
+    if n_elements(strsplit(strs[1],'-',/extract)) eq 3 then dateDelim = '-' else dateDelim = '/' 
+    
     while ~EOF(lun) do begin
 
       readf,lun,str
       if strmid(str,0,1) eq '#' then continue
+      
+
+      
+      
       strs = strsplit(str,';',/extract)
-      date = strsplit(strs[0],'-',/extract)
+      date = strsplit(strs[0],dateDelim,/extract)
+      if dateDelim eq '/' then begin
+        year  = date[2]
+        month = date[1]
+        day   = date[0]
+      endif else begin
+        year  = date[0]
+        month = date[1]
+        day   = date[2]
+      endelse
+      
       time = strsplit(strs[1],':',/extract)
-      dateTime = greg2jul(date[1],date[2],date[0],time[0],time[1],time[2])
+          
+      if rowCounter eq 0 then self.measStartEnd[0] = strjoin([year,month,day],'-') + ' ' + strjoin([time[0],time[1],time[2]],':')
+      
+      dateTime = greg2jul(month,day,year,time[0],time[1],time[2])
+      
+      
       t = [t,dateTime]
       unit = strs[3]
       case strupcase(unit) of
@@ -63,9 +94,13 @@ case format of
       ;replace , with . if present to get correct decimal separator
       aString = strjoin(strsplit(strs[2],',',/extract),'.')
       A = [A,double(aString)*mltpl]   ;activity in GBq
+      rowCounter++
     endwhile
     free_lun,lun
-    t = (t-t[0])*24d    ;set t = 0 at the first measurement and adjust time to hours
+    
+    
+   self.measStartEnd[1] = strjoin([year,month,day],'-') + ' ' + strjoin([time[0],time[1],time[2]],':') ;save datetime for first and last datapoint
+    t = (t-t[0])*24d   ;set t = 0 at the first measurement and adjust time to hours
   end
 
   else: begin
@@ -189,8 +224,8 @@ aMin  = min(aData, max = aMax)
 ;data to include in report
 str = ['Program version: ' + self.programVersion]
 str = [str,'Data file: ' + file_basename(self.fileName)]
-;str = [str,'Measurement started: ' + 'TODO']
-;str = [str,'Measurement ended: ' + 'TODO']
+str = [str,'Measurement started: ' + self.measStartEnd[0]]
+str = [str,'Measurement ended: ' + self.measStartEnd[1]]
 str = [str,'Measurement length (h): ' + string(max(*self.time),format = '(f-8.1)')]
 str = [str,'N. samples: ' + strcompress(n_elements(*self.act),/rem)]
 str = [str,'']
@@ -209,7 +244,7 @@ str = [str,'Sign: ........................................................']
 if self.linValue lt 5 then yrange = [-5,5] else yrange = []   ;scale y range in dev plot if needed
 
 w = window(dimensions = [600,800],title = 'Radionuclide ionization chamber linearity')
-t  = text(0.53,0.685,str,/current,font_size = fontSize)
+t  = text(0.53,0.66,str,/current,font_size = fontSize)
 
 
 
@@ -259,9 +294,9 @@ pro LinearityAnalysis::Abouts, calledFromInit = calledFromInit
 
 ;change log 
 ;1.0    inital version with widget, created on the basis of a script used for many years
+;1.1    measurement start and end is saved and printed in the report, for both formats of data file
 
-
-self.programVersion = '1.0'
+self.programVersion = '1.1'
 
 if ~keyword_set(CalledFromInit) then begin
     str = ['Version ' + self.programVersion,'Author: Gustav Brolin, Radiation Physics, Skane University Hospital']
@@ -303,6 +338,7 @@ void = {LinearityAnalysis                       ,$
         formatList:ptr_new()                    ,$
         fileName:''                             ,$   ;full path to data file
         path:''                                 ,$   ;path in which to look for data files
+        measStartEnd:strarr(2)                  ,$   ;date and time for measurement start and end, as strings to be printed directly in the report
         time:ptr_new()                          ,$   ;time in hours from first data point
         act: ptr_new()                          ,$   ;measured activity in Gigabecquerel
         actLims:dblarr(2)                       ,$   ;activity limits [min,max] for linearity calculation
