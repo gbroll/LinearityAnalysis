@@ -43,6 +43,8 @@ end
 
 pro LinearityAnalysis::ReadData
 
+;test
+
 str = ''
 t = []  ;time in seconds
 A = []  ;Activity in Becquerel
@@ -58,16 +60,16 @@ self.path = path
 print,self.fileName
 openr,lun,self.fileName,/get_lun
 
-
 ;get selected data format
 wRef   = widget_info(self.tlb,find_by_uname = 'SelectFormatDlist')
 format = widget_info(wRef,/droplist_select)
 print,format 
 
 rowCounter = 0
+
 case format of
  
-  0:begin  ;Comecer
+  0:begin  ;Comecer (unknown software version) in cyklotron
     
     self.activityUnits = 'GBq'
     
@@ -149,22 +151,19 @@ case format of
    t = (t-t[0])*24d   ;set t = 0 at the first measurement and adjust time to hours
   end
 
-  2:begin
+  2:begin  ;Fidelis CSV-file
     
     self.activityUnits = 'pA'
-    
-    ;Fidelis CSV-file
+  
     readf,lun,str  ;headers
     strs = strsplit(str,';',/extract) 
     if n_elements(strs) eq 1 then csvDelim = ',' else csvDelim = ','
-    strs = strsplit(str,csvDelim,/extract)
-    
+    ;strs = strsplit(str,csvDelim,/extract)   
     
     while ~EOF(lun) do begin
       
       readf,lun,str
       strs = strsplit(str,csvDelim,/extract) ;csv data 
-      
       
       if rowCounter eq 0 then begin
         if n_elements(strsplit(strs[0],'-',/extract)) eq 3 then dateDelim = '-' else dateDelim = '/'
@@ -180,12 +179,10 @@ case format of
       minute = strtrim(time[1],2)
       second = strtrim(time[2],2)
       
-      
       if rowCounter eq 0 then self.measStartEnd[0] = strjoin([year,month,day],'-') + ' ' + strjoin([time[0],time[1],time[2]],':')
       
       dateTime = greg2jul(month,day,year,hour,minute,second)
       t = [t,dateTime]
-      
       
       ;for Fidelis, we use measured current rather than activity
       paNew = double(strs[8])
@@ -204,12 +201,76 @@ case format of
     self.measStartEnd[1] = strjoin([year,month,day],'-') + ' ' + strjoin([time[0],time[1],time[2]],':') ;save datetime for first and last datapoint
     
     end
+    
+    3: begin  ;IBC (4.2.0)/QMM (2.3.0) csv-file (messy)
+
+      self.activityUnits = 'GBq'
+      ;try to determine csv-delimiter
+      readf,lun,str 
+      strs = strsplit(str,';',/extract)
+      if n_elements(strs) eq 1 then csvDelim = ',' else csvDelim = ','
+     
+      print,'csv delimiter: ',csvDelim
+     
+      sampleCounter = 0
+      while ~EOF(lun) do begin
+        on_ioerror,noData
+
+        readf,lun,str
+        strs = strsplit(str,csvDelim,/extract) ;csv data 
+      
+        ;need some way to find data strings
+        sampleNum = fix(strs[0])
+        ;print,sampleNum
+        
+        if (sampleNum eq 0) or (sampleNum ne sampleCounter+1) then continue  ;meas data should be an integer sequence 
+        
+          sampleCounter++
+          print,sampleNum,sampleCounter
+
+          dateTime = strsplit(strs[1],' ',/extract)
+          date = dateTime[0]
+          if n_elements(strsplit(date,'-',/extract)) eq 3 then dateDelim = '-' else dateDelim = '/' 
+          date     = strsplit(date,dateDelim,/extract)
+          time     = strsplit(dateTime[1],':',/extract)
+      
+          year   = strtrim(date[0],2)
+          month  = strtrim(date[1],2)
+          day    = strtrim(date[2],2)
+          hour   = strtrim(time[0],2)
+          minute = strtrim(time[1],2)
+          if n_elements(time) gt 2 then second = strtrim(time[2],2) else second = '00'
+        
+          if sampleNum eq 1 then self.measStartEnd[0] = strjoin([year,month,day],'-') + ' ' + strjoin([hour,minute,second],':')
+        
+          julDateTime = greg2Jul(month,day,year,hour,minute,second)
+          print,julDateTime
+          t = [t,julDateTime]
+          
+          ;get measured activity
+          aString = strsplit(strs[2],' ',/extract)
+          unit = aString[1]
+          case strupcase(unit) of
+            'BQ' : mltpl = 1d-9
+            'KBQ': mltpl = 1d-6
+            'MBQ': mltpl = 0.001d
+            'GBQ': mltpl = 1d
+          endcase
+          A = [A,double(aString[0])*mltpl]
+      
+          noData: ;do nothing, just get rid of the type conversion errors
+        
+      endwhile
+
+    self.measStartEnd[1] = strjoin([year,month,day],'-') + ' ' + strjoin([hour,minute,second],':') ;save datetime for first and last datapoint
+    t = (t-t[0])*24d   ;set t = 0 at the first measurement and adjust time to hours
+
+    end
 
   else: begin
     a = dialog_message('Unknown format: ' + strcompress(format,/rem),/error)
     return
   end
-
 
 endcase
 
@@ -222,6 +283,8 @@ free_lun,lun
 ;calculate deltaT [min,average,max]
 deltaTVec = (shift(t,-1)-t)[0:-2]
 self.deltaT = [min(deltaTVec),mean(deltaTVec),max(deltaTVec)]
+
+stop
 
 ;plot the data
 wRef = widget_info(self.TLB, find_by_uname = 'plotWin')
@@ -384,33 +447,32 @@ if self.bkgCorr[0] gt 0 then begin
     0:begin
         ;model = ;a0*exp(-a1*t)+a2, where a2 is the background term
         
-        parinfo = replicate({value:0.D, fixed:0, limited:[0,0], $
-          limits:[0.D,0]}, 3)
+        parinfo = replicate({value:0.D, fixed:0, limited:[0,0], limits:[0.D,0]}, 3)
 
         parInfo[1].fixed   = 1             ;fix halflife of nuclide
-        parInfo[2].limited = 1             ;limit the background a0 to 5 MBq
-        parInfo[2].limits  = [0,5d-3]      ;
+        parInfo[2].limited = 1             ;limit the background a0 
+        parInfo[2].limits  = [0,5d-3]      ;to maximum 5 MBq
 
         parInfo[*].value = [aDataFit[0],alog(2)/halfLife,1d-4] ;initial guess
-
-        weights = 1.0/*self.act                        ;poisson weighting
+        weights = 1.0/*self.act                                ;poisson weighting
+        
         parms = MPFITFUN('LinearityAnalysisMonoExp', *self.time, *self.act, ERR, coeff, weights = weights, parInfo = parInfo)
-
         self.bkgEstimate = [parms[2],0]
         print,'Bkg (MBq): ',self.bkgEstimate[0] * 1000
         bkgCorrArr = replicate(self.bkgEstimate[0],n_elements(tData))
+        
       end
+      
     1:begin
       ;model = a0*exp(-a1*t) + a2*exp(-a3*t)
        
-       parinfo = replicate({value:0.D, fixed:0, limited:[0,0], $
-                             limits:[0.D,0]}, 4)
+       parinfo = replicate({value:0.D, fixed:0, limited:[0,0], limits:[0.D,0]}, 4)
        
-       parInfo[1].fixed   = 1             ;fix halflife of nuclide
-       parInfo[2].limited = [1,1]         ;limit the background a0 to 5 MBq
-       parInfo[2].limits  = [0,5d-3]      ;
-       parInfo[3].limited = [1,1]         ;limit the background halflife to minimum 24 h
-       parInfo[3].limits  = [0,alog(2)/10]
+       parInfo[1].fixed   = 1              ;fix halflife of nuclide
+       parInfo[2].limited = [1,1]          ;limit the background a0 
+       parInfo[2].limits  = [0,5d-3]       ;to maximum 5 MBq
+       parInfo[3].limited = [1,1]          ;limit the background halflife 
+       parInfo[3].limits  = [0,alog(2)/10] ;to minimum 10h 
        
        parInfo[*].value = [aDataFit[0],alog(2)/halfLife,1d-4,alog(2)/24] ;initial guess
              
@@ -675,7 +737,7 @@ self.halflifelist = ptr_new(/allocate_heap)
 
 call_method, 'Abouts',self,/calledFromInit ;get program verion
 
-*self.formatList = ['Comecer','Capintec (MP)','Fidelis']
+*self.formatList = ['Comecer (Cyklotron)','Capintec (MP)','Fidelis','Comecer QMM/IBC']
 
 *self.nuclideList   = ['F-18','Tc-99m']
 *self.HalfLifeList  = [109.723/60d,6.007d] ; [h]F-18 halflife from Applied Radiation and Isotopes 68 (2010) 1561–1565), good agreement with LHNB and NPL recommended values
