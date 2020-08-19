@@ -297,7 +297,9 @@ self.atData = atData
 
 end
 
-pro LinearityAnalysis::SetActLims, atData,init = init
+pro LinearityAnalysis::SetActLims,init = init
+
+atData = self.atData
 
 if keyword_set(init) then begin
   
@@ -446,9 +448,9 @@ if self.bkgCorr[0] gt 0 then begin
         parInfo[2].limits  = [0,5d-3]      ;to maximum 5 MBq
 
         parInfo[*].value = [aDataFit[0],alog(2)/halfLife,1d-4] ;initial guess
-        weights = 1.0/*self.act                                ;poisson weighting
+        weights = 1.0/*atData.activity                                ;poisson weighting
         
-        parms = MPFITFUN('LinearityAnalysisMonoExp', *self.time, *self.act, ERR, coeff, weights = weights, parInfo = parInfo)
+        parms = MPFITFUN('LinearityAnalysisMonoExp', *atData.time, *atData.activity, ERR, coeff, weights = weights, parInfo = parInfo)
         self.bkgEstimate = [parms[2],0]
         print,'Bkg (MBq): ',self.bkgEstimate[0] * 1000
         bkgCorrArr = replicate(self.bkgEstimate[0],n_elements(tData))
