@@ -60,7 +60,6 @@ pro LinearityAnalysis::ReadData
   atData.pathToFile = file_dirname(fileName,/mark_dir)
   atData.fileName   = file_basename(fileName)
   
-
   ;get selected data format
   wRef   = widget_info(self.tlb,find_by_uname = 'SelectFormatDlist')
   format = widget_info(wRef,/droplist_select)
@@ -75,225 +74,28 @@ pro LinearityAnalysis::ReadData
 
   ;read data
   call_method,dataReadMethod,atData
-
   
-
-;case format of
-;  
-;endcase
-; 
-;  0:begin  ;Comecer (unknown software version) in cyklotron
-;    
-;    
-;  
-;  1:begin ;Capintec
-;    
-;    self.activityUnits = 'GBq'
-;    
-;    readf,lun,str   
-;    strs = strsplit(str,' ' ,/extract)
-;    if n_elements(strsplit(strs[1],'-',/extract)) eq 3 then dateDelim = '-' else dateDelim = '/' 
-;    
-;    while ~EOF(lun) do begin
-;
-;      readf,lun,str
-;      if strmid(str,0,1) eq '#' then continue
-;      
-;      strs = strsplit(str,';',/extract)
-;      date = strsplit(strs[0],dateDelim,/extract)
-;      if dateDelim eq '/' then begin
-;        year  = date[2]
-;        month = date[1]
-;        day   = date[0]
-;      endif else begin
-;        year  = date[0]
-;        month = date[1]
-;        day   = date[2]
-;      endelse
-;      
-;      time = strsplit(strs[1],':',/extract)
-;          
-;      if rowCounter eq 0 then self.measStartEnd[0] = strjoin([year,month,day],'-') + ' ' + strjoin([time[0],time[1],time[2]],':')
-;      
-;      dateTime = greg2jul(month,day,year,time[0],time[1],time[2])
-;      
-;      
-;      t = [t,dateTime]
-;      unit = strs[3]
-;      case strupcase(unit) of
-;        'BQ' : mltpl = 1d-9
-;        'KBQ': mltpl = 1d-6
-;        'MBQ': mltpl = 0.001d
-;        'GBQ': mltpl = 1d
-;      endcase
-;      ;replace , with . if present to get correct decimal separator
-;      aString = strjoin(strsplit(strs[2],',',/extract),'.')
-;      A = [A,double(aString)*mltpl]   ;activity in GBq
-;      rowCounter++
-;    endwhile
-;    free_lun,lun
-;    
-;    
-;   self.measStartEnd[1] = strjoin([year,month,day],'-') + ' ' + strjoin([time[0],time[1],time[2]],':') ;save datetime for first and last datapoint
-;   t = (t-t[0])*24d   ;set t = 0 at the first measurement and adjust time to hours
-;  end
-;
-;  2:begin  ;Fidelis CSV-file
-;    
-;    self.activityUnits = 'pA'
-;  
-;    readf,lun,str  ;headers
-;    strs = strsplit(str,';',/extract) 
-;    if n_elements(strs) eq 1 then csvDelim = ',' else csvDelim = ','
-;    ;strs = strsplit(str,csvDelim,/extract)   
-;    
-;    while ~EOF(lun) do begin
-;      
-;      readf,lun,str
-;      strs = strsplit(str,csvDelim,/extract) ;csv data 
-;      
-;      if rowCounter eq 0 then begin
-;        if n_elements(strsplit(strs[0],'-',/extract)) eq 3 then dateDelim = '-' else dateDelim = '/'
-;       
-;      endif
-;      date = strsplit(strs[0],dateDelim,/extract)
-;      time = strsplit(strs[1],':',/extract)
-;      
-;      year   = strtrim(date[2],2)
-;      month  = strtrim(date[1],2)
-;      day    = strtrim(date[0],2)
-;      hour   = strtrim(time[0],2)
-;      minute = strtrim(time[1],2)
-;      second = strtrim(time[2],2)
-;      
-;      if rowCounter eq 0 then self.measStartEnd[0] = strjoin([year,month,day],'-') + ' ' + strjoin([time[0],time[1],time[2]],':')
-;      
-;      dateTime = greg2jul(month,day,year,hour,minute,second)
-;      t = [t,dateTime]
-;      
-;      ;for Fidelis, we use measured current rather than activity
-;      paNew = double(strs[8])
-;      paBkg = double(strs[30])
-;      paNew = paNew-paBkg
-;      
-;      print,paNew,paBkg
-;      
-;      A = [A,paNew]
-;      rowCounter++
-;    endwhile
-;    
-;    t = (t-t[0])*24d   ;set t = 0 at the first measurement and adjust time to hours
-;    print,max(A),min(A)
-;    
-;    self.measStartEnd[1] = strjoin([year,month,day],'-') + ' ' + strjoin([time[0],time[1],time[2]],':') ;save datetime for first and last datapoint
-;    
-;    end
-;    
-;    3: begin  ;IBC (4.2.0)/QMM (2.3.0) csv-file (messy)
-;
-;      self.activityUnits = 'GBq'
-;      ;try to determine csv-delimiter
-;      readf,lun,str 
-;      strs = strsplit(str,';',/extract)
-;      if n_elements(strs) eq 1 then csvDelim = ',' else csvDelim = ','
-;     
-;      print,'csv delimiter: ',csvDelim
-;     
-;      sampleCounter = 0
-;      while ~EOF(lun) do begin
-;        on_ioerror,noData
-;
-;        readf,lun,str
-;        strs = strsplit(str,csvDelim,/extract) ;csv data 
-;      
-;        ;need some way to find data strings
-;        sampleNum = fix(strs[0])
-;        ;print,sampleNum
-;        
-;        if (sampleNum eq 0) or (sampleNum ne sampleCounter+1) then continue  ;meas data should be an integer sequence 
-;        
-;          sampleCounter++
-;          print,sampleNum,sampleCounter
-;
-;          dateTime = strsplit(strs[1],' ',/extract)
-;          date = dateTime[0]
-;          if n_elements(strsplit(date,'-',/extract)) eq 3 then dateDelim = '-' else dateDelim = '/' 
-;          date     = strsplit(date,dateDelim,/extract)
-;          time     = strsplit(dateTime[1],':',/extract)
-;      
-;          year   = strtrim(date[0],2)
-;          month  = strtrim(date[1],2)
-;          day    = strtrim(date[2],2)
-;          hour   = strtrim(time[0],2)
-;          minute = strtrim(time[1],2)
-;          if n_elements(time) gt 2 then second = strtrim(time[2],2) else second = '00'
-;        
-;          if sampleNum eq 1 then self.measStartEnd[0] = strjoin([year,month,day],'-') + ' ' + strjoin([hour,minute,second],':')
-;        
-;          julDateTime = greg2Jul(month,day,year,hour,minute,second)
-;          print,julDateTime
-;          t = [t,julDateTime]
-;          
-;          ;get measured activity
-;          aString = strsplit(strs[2],' ',/extract)
-;          unit = aString[1]
-;          case strupcase(unit) of
-;            'BQ' : mltpl = 1d-9
-;            'KBQ': mltpl = 1d-6
-;            'MBQ': mltpl = 0.001d
-;            'GBQ': mltpl = 1d
-;          endcase
-;          A = [A,double(aString[0])*mltpl]
-;      
-;          noData: ;do nothing, just get rid of the type conversion errors
-;        
-;      endwhile
-;
-;    self.measStartEnd[1] = strjoin([year,month,day],'-') + ' ' + strjoin([hour,minute,second],':') ;save datetime for first and last datapoint
-;    t = (t-t[0])*24d   ;set t = 0 at the first measurement and adjust time to hours
-;
-;    end
-;
-;  else: begin
-;    a = dialog_message('Unknown format: ' + strcompress(format,/rem),/error)
-;    return
-;  end
-;
-;endcase
-;
-;
-;free_lun,lun
-;
-;*self.time = t
-;*self.act  = A
-;
-;;calculate deltaT [min,average,max]
-;deltaTVec = (shift(t,-1)-t)[0:-2]
-;self.deltaT = [min(deltaTVec),mean(deltaTVec),max(deltaTVec)]
-;
-;stop
-;
-;plot the data
-wRef = widget_info(self.TLB, find_by_uname = 'plotWin')
-widget_control,wRef,get_value = oRef
-oRef.select
-oRef.erase
-self.plotObj[0] = plot(*atData.time,*atData.activity,/ylog,/current, xtitle = 'Elapsed time(h)', ytitle = 'Measured activity (' + atData.activityUnits + ')')
-textObj         = text(0.25,0.8,file_basename(atData.fileName),/normal)
+  ;SAVE data object in this object
+  self.atData = atData
+  
+  ;plot the data in widget
+  wRef = widget_info(self.TLB, find_by_uname = 'plotWin')
+  widget_control,wRef,get_value = oRef
+  oRef.select
+  oRef.erase
+  self.plotObj[0] = plot(*atData.time,*atData.activity,/ylog,/current, xtitle = 'Elapsed time(h)', ytitle = 'Measured activity (' + atData.activityUnits + ')')
+  textObj         = text(0.25,0.8,file_basename(atData.fileName),/normal)
 
 
-;set activity limits to max and min
-call_method, 'SetActLims',self,atData,init = 1
+  ;set activity limits to max and min activity
+  call_method, 'SetActLims',self,init = 1
 
-;sensitize appropriate widgets
-widgets = ['SelectNuclideDlist','DataAverageTextbox','ButtonRun','BkgEstDlist','BkgModelDlist']
-foreach widget,widgets do begin
-  wRef = widget_info(self.TLB, find_by_uname = widget)
-  widget_control,wRef,sensitive = 1
-endforeach
-
-;SAVE data object in this object
-self.atData = atData
+  ;sensitize appropriate widgets
+  widgets = ['SelectNuclideDlist','DataAverageTextbox','ButtonRun','BkgEstDlist','BkgModelDlist']
+  foreach widget,widgets do begin
+    wRef = widget_info(self.TLB, find_by_uname = widget)
+    widget_control,wRef,sensitive = 1
+  endforeach
 
 end
 
@@ -328,9 +130,19 @@ widget_control,wRef,get_value = aMax
 
 aMin  = double(aMin[0])
 aMax = double(aMax[0]) 
-if (aMin lt min(*atData.activity)) or (aMin ge aMax) then aMin = min(*atData.activity)
-if (aMax gt max(*atData.activity)) or (aMax le aMin) then aMax = max(*atData.activity)
+
+;snap aMin and aMax to nearest existing data point
+ix = value_locate(*atData.activity,[aMax,aMin])  ;note that *atData.activity is (almost) monotonically decreasing
+self.iLims = [ix[0]>0,ix[1]<n_elements(*atData.activity)]
+aMax = (*atData.activity)[self.iLims[0]]
+aMin = (*atData.activity)[self.iLims[1]]
 self.actLims = [aMin,aMax]
+
+
+
+;if (aMin lt min(*atData.activity)) or (aMin ge aMax) then aMin = min(*atData.activity)
+;if (aMax gt max(*atData.activity)) or (aMax le aMin) then aMax = max(*atData.activity)
+
 
 ;fitting range
 wRef = widget_info(self.TLB, find_by_uname = 'FitLow')
@@ -339,10 +151,16 @@ wRef = widget_info(self.TLB, find_by_uname = 'FitHigh')
 widget_control,wRef,get_value = aMaxFit
 
 aMinFit  = double(aMinFit[0])
-aMaxFit = double(aMaxFit[0])
-if (aMinFit lt min(*atData.activity)) or (aMinFit ge aMax) then aMinFit = min(*atData.activity)
-if (aMaxFit gt max(*atData.activity)) or (aMaxFit le aMin) then aMaxFit = max(*atData.activity)
-self.actLimsFit = [aMinFit,aMaxFit]
+aMaxFit  = double(aMaxFit[0])
+;snap aMinFit and aMaxFit to nearest existing data point
+ix = value_locate(*atData.activity,[aMaxFit,aMinFit])
+self.iLimsFit = [ix[0]>0,ix[1]<n_elements(*atData.activity)]
+aMinFit = (*atData.activity)[self.iLimsFit[1]]
+aMaxFit = (*atData.activity)[self.iLimsFit[0]]
+
+;if (aMinFit lt min(*atData.activity)) or (aMinFit ge aMax) then aMinFit = min(*atData.activity)
+;if (aMaxFit gt max(*atData.activity)) or (aMaxFit le aMin) then aMaxFit = max(*atData.activity)
+;self.actLimsFit = [aMinFit,aMaxFit]
 
 
 ;set value in boxes
@@ -370,18 +188,21 @@ self.plotObj[1] = polygon([[tMin,tMin,tMax,tMax],[aMax,aMin,aMin,aMax]],/data,/c
 
 ;get the indices of max and min activity
 ;analysis
-ix = where(*atData.activity le aMax) & maxIx = min(ix)
-ix = where(*atData.activity ge aMin) & minIx = max(ix)
-self.iLims = [maxIx,minIx]
+;ix = where(*atData.activity le aMax) & maxIx = min(ix)
+;ix = where(*atData.activity ge aMin) & minIx = max(ix)
+;self.iLims = [maxIx,minIx]
+;ix = value_locate(*atData.activity,[aMax,aMin])  ;note that *atData.activity is (almost) monotonically decreasing
+;self.iLims = [ix[0]>0,ix[1]<n_elements(*atData.activity)]
+;
+;;fitting
+;;ix = where(*atData.activity le aMaxFit) & maxIx = min(ix)
+;;ix = where(*atData.activity ge aMinFit) & minIx = max(ix)
+;;self.iLimsFit = [maxIx,minIx]
+;ix = value_locate(*atData.activity,[aMaxFit,aMinFit])  ;note that *atData.activity is (almost) monotonically decreasing
+;self.iLimsFit = [ix[0]>0,ix[1]<n_elements(*atData.activity)]
 
-;fitting
-ix = where(*atData.activity le aMaxFit) & maxIx = min(ix)
-ix = where(*atData.activity ge aMinFit) & minIx = max(ix)
-self.iLimsFit = [maxIx,minIx]
-
-
-;print,self.iLims 
-
+print,self.iLims 
+print,self.iLimsFit
 
 end
 
@@ -680,7 +501,7 @@ end
 
 pro LinearityAnalysisEventHandler,event
 
-print,event
+;print,event
 widget_control,event.id,get_uvalue = cmd
 uName = widget_info(event.id,/uname)
 
@@ -704,9 +525,10 @@ pro LinearityAnalysis::Abouts, calledFromInit = calledFromInit
 ;1.3    - added support to compensate for background signal (e.g. from long-lived radionuclides in the sample)
 ;       - data model is mono-exponential + constant bkg OR mono-exponential background
 ;       - changed widget font and decimals in report
-    
+;1.4    - added support for csv files from Comecer IBC (v4.2.0)/QMM (v2.3.0)     
+;       - added data object including methods to read the input data for the various formats
 
-self.programVersion = '1.3'
+self.programVersion = '1.4'
 
 if ~keyword_set(CalledFromInit) then begin
     str = ['Version ' + self.programVersion,'Author: Gustav Brolin, Radiation Physics, Skane University Hospital']
