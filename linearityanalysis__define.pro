@@ -291,8 +291,8 @@ if self.bkgCorr[0] gt 0 then begin
        
        parInfo[*].value = [aDataFit[0],alog(2)/halfLife,1d-4,alog(2)/24] ;initial guess
              
-       weights = 1.0/*self.act                        ;poisson weighting
-       parms = MPFITFUN('LinearityAnalysisBiExp', *self.time, *self.act, ERR, coeff, weights = weights, parInfo = parInfo,ftol = 1d-15)
+       weights = 1.0/*atData.activity                        ;poisson weighting
+       parms = MPFITFUN('LinearityAnalysisBiExp', *atData.time, *atData.activity, ERR, coeff, weights = weights, parInfo = parInfo,ftol = 1d-15)
 
        self.bkgEstimate = parms[2:3]        
        print,'Bkg (MBq,h): ',self.bkgEstimate[0] * 1000,alog(2)/self.bkgEstimate[1]
@@ -416,8 +416,8 @@ pro LinearityAnalysis::CreateReport
   ;optionally plot the estimated background 
   if self.bkgEstimate[0] gt 0 then begin
     
-    if self.bkgEstimate[1] gt 0 then bkgCurve = self.bkgEstimate[0]*exp(-self.bkgEstimate[1]*(*self.Time)) else bkgCurve = replicate(self.bkgEstimate[0],n_elements(*self.Time))
-    bkgPlotObj = plot(*self.time,bkgCurve,/overplot,thick = 2,name = 'Background est.')
+    if self.bkgEstimate[1] gt 0 then bkgCurve = self.bkgEstimate[0]*exp(-self.bkgEstimate[1]*(*atData.Time)) else bkgCurve = replicate(self.bkgEstimate[0],n_elements(*atData.Time))
+    bkgPlotObj = plot(*atData.time,bkgCurve,/overplot,thick = 2,name = 'Background est.')
     target = [target,bkgPlotObj]
   endif
   ;include legend
