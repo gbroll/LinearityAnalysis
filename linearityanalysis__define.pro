@@ -132,11 +132,18 @@ aMin  = double(aMin[0])
 aMax = double(aMax[0]) 
 
 ;snap aMin and aMax to nearest existing data point
-ix = value_locate(*atData.activity,[aMax,aMin])  ;note that *atData.activity is (almost) monotonically decreasing
-self.iLims = [ix[0]>0,ix[1]<n_elements(*atData.activity)]
+;ix = value_locate(*atData.activity,[aMax,aMin])  ;note that *atData.activity is (almost) monotonically decreasing
+;self.iLims = [ix[0]>0,ix[1]<n_elements(*atData.activity)]
+;
+diff = abs((*atData.activity)-aMin)
+self.iLims[1] = where(diff eq min(diff))
+diff = abs((*atData.activity)-aMax)
+self.iLims[0] = where(diff eq min(diff))
+
 aMax = (*atData.activity)[self.iLims[0]]
 aMin = (*atData.activity)[self.iLims[1]]
 self.actLims = [aMin,aMax]
+
 
 
 
@@ -333,6 +340,14 @@ endif
 
 ;****************************************************************************
 dev = (corrAct - mean(corrAct))/mean(corrAct) * 100  ;dev in percent
+
+print,min(dev),max(dev)
+
+;dev = (aData-*self.actExp)/*self.actExp
+;dev = (dev-mean(dev))*100
+
+;print,min(dev),max(dev)
+
 ;****************************************************************************
 
 ;calculate activity ranges with deviation less than specified. Where to start the search? 
@@ -396,7 +411,7 @@ pro LinearityAnalysis::CreateReport
   t  = text(0.53,0.58,str,/current,font_size = fontSize)  ;print string in report
   
   ;scale y range in dev plot if needed 
-  if self.linValue lt 5 then yrange = [-10,10] else yrange = [-max(abs(*self.devArr)),max(abs(*self.devArr))]   
+  if self.linValue lt 9 then yrange = [-10,10] else yrange = [-max(abs(*self.devArr)),max(abs(*self.devArr))]   
   
   ;plot measured data
   p = plot(*atData.time,*atData.activity,/ylog,thick = 2,color = 'blue',xtitle = 'Elapsed time (hours)',ytitle = 'Activity ('+atData.activityUnits +')',/current,name = 'Measured',$
@@ -527,8 +542,9 @@ pro LinearityAnalysis::Abouts, calledFromInit = calledFromInit
 ;       - changed widget font and decimals in report
 ;1.4    - added support for csv files from Comecer IBC (v4.2.0)/QMM (v2.3.0)     
 ;       - added data object including methods to read the input data for the various formats
+;1.4.1  - added support for analyzing linearity for measurement with Ga-68. 
 
-self.programVersion = '1.4'
+self.programVersion = '1.4.1'
 
 if ~keyword_set(CalledFromInit) then begin
     str = ['Version ' + self.programVersion,'Author: Gustav Brolin, Radiation Physics, Skane University Hospital']
@@ -557,9 +573,14 @@ call_method, 'Abouts',self,/calledFromInit ;get program verion
 
 *self.formatList = ['Comecer (Cyklotron)','Capintec (MP)','Fidelis','Comecer QMM/IBC']
 
-*self.nuclideList   = ['F-18','Tc-99m']
-*self.HalfLifeList  = [109.723/60d,6.007d] ; [h]F-18 halflife from Applied Radiation and Isotopes 68 (2010) 1561–1565), good agreement with LHNB and NPL recommended values
-                                           ; Tc-99m halflife from LHNB
+
+
+; [h]F-18 halflife from Applied Radiation and Isotopes 68 (2010) 1561–1565), good agreement with LHNB and NPL recommended values
+; Tc-99m halflife from LHNB
+; Ga-68 halflife from MIRD database
+*self.nuclideList   = ['F-18','Tc-99m','Ga-68']
+*self.HalfLifeList  = [109.723/60d,6.007d,67.71/60d]
+                                       
 self.devLevels = [1d,5d]                   ; deviation levels for reporting of linearity
 
 ;realize widget
